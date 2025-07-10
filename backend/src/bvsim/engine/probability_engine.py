@@ -114,6 +114,17 @@ class ProbabilityEngine:
         elif current_state == RallyState.ATTACK_BLOCKED:
             return self._calculate_block_outcome_probabilities(opponent_stats)
         
+        elif current_state == RallyState.BLOCK_CONTROLLED:
+            # After a controlled block, ball goes to opposing team for transition
+            return {RallyState.TRANSITION_SET: Decimal("0.8"), 
+                   RallyState.TRANSITION_ATTACK: Decimal("0.2")}
+        
+        elif current_state == RallyState.BLOCK_TOUCH:
+            # After block touch, ball deflects back to attacking team for digging
+            return {RallyState.DIG_POOR: Decimal("0.6"),
+                   RallyState.DIG_GOOD: Decimal("0.25"),
+                   RallyState.DIG_ERROR: Decimal("0.15")}
+        
         elif current_state in [RallyState.DIG_PERFECT, RallyState.DIG_GOOD, RallyState.DIG_POOR]:
             return self._calculate_transition_probabilities_from_dig(team_stats, current_state)
         

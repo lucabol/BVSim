@@ -7,6 +7,7 @@ import os
 from .core.database import check_database_connection
 from .schemas.common import HealthCheck
 from .api.rally import router as rally_router
+from .api.monte_carlo import router as monte_carlo_router
 
 app = FastAPI(
     title="Beach Volleyball Simulator API",
@@ -75,6 +76,7 @@ async def api_info():
 
 # Include routers
 app.include_router(rally_router)
+app.include_router(monte_carlo_router)
 
 # Include additional routers here as they're implemented
 # from .routers import teams, simulations, analytics

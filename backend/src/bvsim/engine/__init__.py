@@ -26,6 +26,16 @@ from .rally_simulator import (
     PointOutcome
 )
 
+from .monte_carlo import (
+    MonteCarloEngine,
+    SimulationBatch,
+    SimulationResults,
+    MatchResult,
+    SetResult,
+    MatchFormat,
+    SetType
+)
+
 __all__ = [
     # Rally states and context
     "RallyState",
@@ -48,5 +58,14 @@ __all__ = [
     "RallySimulator",
     "RallyEvent",
     "RallyResult", 
-    "PointOutcome"
+    "PointOutcome",
+    
+    # Monte Carlo simulation
+    "MonteCarloEngine",
+    "SimulationBatch",
+    "SimulationResults",
+    "MatchResult",
+    "SetResult",
+    "MatchFormat",
+    "SetType"
 ]
