@@ -82,11 +82,14 @@ app.include_router(monte_carlo_router)
 from .api.match import router as match_router
 app.include_router(match_router)
 
+# Phase 4: Advanced analytics endpoints
+from .api.analytics import router as analytics_router
+app.include_router(analytics_router)
+
 # Include additional routers here as they're implemented
-# from .routers import teams, simulations, analytics
+# from .routers import teams, simulations
 # app.include_router(teams.router, prefix="/api/teams", tags=["teams"])
 # app.include_router(simulations.router, prefix="/api/simulations", tags=["simulations"])
-# app.include_router(analytics.router, prefix="/api/analytics", tags=["analytics"])
 
 if __name__ == "__main__":
     import uvicorn
