@@ -78,6 +78,10 @@ async def api_info():
 app.include_router(rally_router)
 app.include_router(monte_carlo_router)
 
+# Phase 3: Match simulation endpoints
+from .api.match import router as match_router
+app.include_router(match_router)
+
 # Include additional routers here as they're implemented
 # from .routers import teams, simulations, analytics
 # app.include_router(teams.router, prefix="/api/teams", tags=["teams"])
