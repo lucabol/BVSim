@@ -2,9 +2,11 @@ FROM node:18-alpine
 
 WORKDIR /app
 
-# Install dependencies
+# Install dependencies for building
 COPY package*.json ./
-RUN npm ci --only=production
+
+# Clean install with all dependencies (including dev dependencies for build)
+RUN npm ci
 
 # Copy source code
 COPY . .

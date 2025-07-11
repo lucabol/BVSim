@@ -1,5 +1,3 @@
-version: '3.8'
-
 services:
   backend:
     build: 
@@ -17,7 +15,7 @@ services:
     depends_on:
       - db
       - redis
-    command: uvicorn bvsim.main:app --host 0.0.0.0 --port 8000 --reload
+    command: sh -c "cd src && uvicorn bvsim.main:app --host 0.0.0.0 --port 8000 --reload"
 
   frontend:
     build:
@@ -43,7 +41,7 @@ services:
       - postgres_data:/var/lib/postgresql/data
       - ./database/init.sql:/docker-entrypoint-initdb.d/init.sql
     ports:
-      - "5432:5432"
+      - "5433:5432"
 
   redis:
     image: redis:7-alpine
