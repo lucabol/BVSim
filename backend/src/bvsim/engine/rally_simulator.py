@@ -140,12 +140,11 @@ class RallySimulator:
         
         try:
             while not is_terminal_state(current_state) and total_transitions < self.max_state_transitions:
-                # Determine which team is acting
-                acting_team = self._get_acting_team(current_state, context)
-                acting_stats = team_a_stats if acting_team == TeamSide.TEAM_A else team_b_stats
-                opponent_stats = team_b_stats if acting_team == TeamSide.TEAM_A else team_a_stats
+                # Calculate transition probabilities first (using current acting team as baseline)
+                baseline_acting_team = self._get_acting_team(current_state, context)
+                acting_stats = team_a_stats if baseline_acting_team == TeamSide.TEAM_A else team_b_stats
+                opponent_stats = team_b_stats if baseline_acting_team == TeamSide.TEAM_A else team_a_stats
                 
-                # Calculate transition probabilities
                 transition_probs = self.probability_engine.calculate_transition_probabilities(
                     current_state, context, acting_stats, opponent_stats
                 )
@@ -157,6 +156,9 @@ class RallySimulator:
                 # Select next state based on probabilities
                 next_state = self._select_next_state(transition_probs)
                 probability = transition_probs.get_probability(next_state)
+                
+                # NOW determine which team performs the next state action
+                acting_team = self._get_acting_team_dynamic(next_state, context, result.events)
                 
                 # Create rally event
                 event = RallyEvent(
@@ -189,7 +191,7 @@ class RallySimulator:
             
             # Determine final outcome
             result.winner, result.point_outcome = self._determine_point_outcome(
-                current_state, context
+                current_state, context, result.events
             )
             result.final_state = current_state
             result.rally_length = total_transitions
@@ -242,34 +244,99 @@ class RallySimulator:
         
         return results
     
-    def _get_acting_team(self, state: RallyState, context: RallyContext) -> TeamSide:
-        """Determine which team is performing the current action."""
+    def _get_acting_team_dynamic(self, state: RallyState, context: RallyContext, events: List[RallyEvent]) -> TeamSide:
+        """Determine which team is performing the current action based on rally flow and previous events."""
         
-        # Serving team actions
+        # If no events yet, use the basic logic
+        if not events:
+            return self._get_acting_team(state, context)
+        
+        # Look at the last event to determine current possession
+        last_event = events[-1]
+        last_performing_team = last_event.performing_team
+        
+        # Special handling for serve reception - always the receiving team
+        if state in [RallyState.RECEPTION_PERFECT, RallyState.RECEPTION_GOOD, RallyState.RECEPTION_POOR]:
+            # If the last event was a serve, the receiving team handles reception
+            if last_event.state in [RallyState.SERVE_IN_PLAY]:
+                return context.get_receiving_team()
+        
+        # Set actions are performed by the team that just received
+        elif state in [RallyState.SET_PERFECT, RallyState.SET_GOOD, RallyState.SET_POOR, RallyState.SET_ERROR]:
+            # If the last action was a reception, the same team sets
+            if last_event.state in [RallyState.RECEPTION_PERFECT, RallyState.RECEPTION_GOOD, RallyState.RECEPTION_POOR]:
+                return last_performing_team  # Same team that received
+        
+        # Attack actions are performed by the team that just set
+        elif state in [RallyState.ATTACK_IN_PLAY, RallyState.ATTACK_KILL, RallyState.TRANSITION_ATTACK]:
+            # If the last action was a set, the same team attacks
+            if last_event.state in [RallyState.SET_PERFECT, RallyState.SET_GOOD, RallyState.SET_POOR, RallyState.TRANSITION_SET]:
+                return last_performing_team  # Same team that set
+        
+        # Block actions are performed by the team defending against an attack
+        elif state in [RallyState.ATTACK_BLOCKED]:
+            # If the last action was an attack, the defending team blocks
+            if last_event.state in [RallyState.ATTACK_IN_PLAY, RallyState.TRANSITION_ATTACK]:
+                return TeamSide.TEAM_A if last_performing_team == TeamSide.TEAM_B else TeamSide.TEAM_B
+        
+        # Defensive actions are performed by the team that is NOT attacking
+        elif state in [
+            RallyState.DIG_PERFECT, RallyState.DIG_GOOD, RallyState.DIG_POOR,
+            RallyState.BLOCK_CONTROLLED, RallyState.BLOCK_TOUCH
+        ]:
+            # If the last action was an attack, the defending team is the opposite
+            if last_event.state in [RallyState.ATTACK_IN_PLAY, RallyState.ATTACK_BLOCKED, RallyState.TRANSITION_ATTACK]:
+                return TeamSide.TEAM_A if last_performing_team == TeamSide.TEAM_B else TeamSide.TEAM_B
+        
+        # Transition logic based on the current state and who performed the last action
+        elif state in [RallyState.TRANSITION_SET, RallyState.TRANSITION_ATTACK]:
+            # Transition actions are performed by the team that just gained possession
+            # This happens after a dig or block, so the team that just defended now attacks
+            
+            # If the last action was a dig or block, the same team continues with transition
+            if last_event.state in [
+                RallyState.DIG_PERFECT, RallyState.DIG_GOOD, RallyState.DIG_POOR,
+                RallyState.BLOCK_CONTROLLED, RallyState.BLOCK_TOUCH
+            ]:
+                return last_performing_team  # Same team that dug/blocked
+            
+            # If the last action was a transition set, the same team attacks
+            elif last_event.state == RallyState.TRANSITION_SET:
+                return last_performing_team  # Same team that set
+                
+        # For all other states, use the standard logic
+        return self._get_acting_team(state, context)
+
+    def _get_acting_team(self, state: RallyState, context: RallyContext) -> TeamSide:
+        """Determine which team is performing the current action based on volleyball flow."""
+        
+        # Serving team always serves
         if state in [RallyState.SERVE_READY]:
             return context.serving_team
         
-        # Receiving team actions
-        elif state in [RallyState.SERVE_IN_PLAY]:
-            return context.get_receiving_team()
-        
-        # Actions alternate based on rally flow
+        # Receiving team handles serve reception and first ball attack sequence
         elif state in [
             RallyState.RECEPTION_PERFECT, RallyState.RECEPTION_GOOD, RallyState.RECEPTION_POOR,
             RallyState.SET_PERFECT, RallyState.SET_GOOD, RallyState.SET_POOR,
-            RallyState.TRANSITION_SET, RallyState.TRANSITION_ATTACK
+            RallyState.ATTACK_IN_PLAY, RallyState.ATTACK_BLOCKED
         ]:
             return context.get_receiving_team()
         
+        # Serving team defends against first attack
         elif state in [
-            RallyState.ATTACK_IN_PLAY, RallyState.ATTACK_BLOCKED,
             RallyState.DIG_PERFECT, RallyState.DIG_GOOD, RallyState.DIG_POOR,
             RallyState.BLOCK_CONTROLLED, RallyState.BLOCK_TOUCH
         ]:
             return context.serving_team
         
+        # Transition actions: performed by the team that just defended (gained possession)
+        elif state in [RallyState.TRANSITION_SET, RallyState.TRANSITION_ATTACK]:
+            # The team that just dug/blocked is now attacking
+            # This is the serving team after they defended the first attack
+            return context.serving_team
+        
         else:
-            # Default to serving team
+            # Default fallback
             return context.serving_team
     
     def _select_next_state(self, transition_probs: TransitionProbabilities) -> RallyState:
@@ -411,7 +478,8 @@ class RallySimulator:
     def _determine_point_outcome(
         self, 
         final_state: RallyState, 
-        context: RallyContext
+        context: RallyContext,
+        events: List[RallyEvent]
     ) -> Tuple[TeamSide, PointOutcome]:
         """Determine who won the point based on the final state."""
         
@@ -423,8 +491,12 @@ class RallySimulator:
             )
         
         elif final_state in [RallyState.ATTACK_KILL, RallyState.BLOCK_KILL]:
-            # Determine winner based on who performed the winning action
-            acting_team = self._get_acting_team(final_state, context)
+            # Determine winner based on who performed the winning action using dynamic logic
+            # If the last event matches the final state, use that team directly
+            if events and events[-1].state == final_state:
+                acting_team = events[-1].performing_team
+            else:
+                acting_team = self._get_acting_team_dynamic(final_state, context, events)
             return acting_team, (
                 PointOutcome.TEAM_A_WIN if acting_team == TeamSide.TEAM_A 
                 else PointOutcome.TEAM_B_WIN
@@ -432,7 +504,11 @@ class RallySimulator:
         
         elif "error" in final_state.value:
             # Error means the acting team loses
-            acting_team = self._get_acting_team(final_state, context)
+            # If the last event matches the final state, use that team directly
+            if events and events[-1].state == final_state:
+                acting_team = events[-1].performing_team
+            else:
+                acting_team = self._get_acting_team_dynamic(final_state, context, events)
             losing_team = acting_team
             winning_team = (
                 TeamSide.TEAM_B if losing_team == TeamSide.TEAM_A 

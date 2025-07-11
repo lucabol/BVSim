@@ -246,8 +246,9 @@ VALID_TRANSITIONS: Dict[RallyState, List[RallyState]] = {
     ],
     
     RallyState.DIG_POOR: [
-        RallyState.TRANSITION_ATTACK,
-        RallyState.ATTACK_ERROR
+        RallyState.TRANSITION_ATTACK,    # Direct attack (emergency)
+        RallyState.TRANSITION_SET,       # Poor set attempt
+        RallyState.ATTACK_ERROR          # Direct error
     ],
     
     RallyState.BLOCK_CONTROLLED: [

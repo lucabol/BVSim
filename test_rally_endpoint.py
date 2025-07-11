@@ -229,6 +229,16 @@ def test_rally_simulation(base_url: str = "http://localhost:8000") -> None:
                 print("   📈 Event distribution:")
                 for event_type, count in list(result['event_type_distribution'].items())[:3]:
                     print(f"      {event_type}: {count}")
+            
+            # Show detailed rally progression for each rally
+            if result.get('individual_results'):
+                print("   🔄 Individual rally progressions:")
+                for rally_idx, rally in enumerate(result['individual_results'], 1):
+                    print(f"      Rally {rally_idx}: {rally['winner']} wins ({rally['rally_length']} actions)")
+                    if rally.get('events'):
+                        for i, event in enumerate(rally['events']):  # Show all events per rally
+                            print(f"         {i+1}. {event['action_type']} by {event['performing_team']} → {event['state']}")
+                    print()
                     
         else:
             print(f"   ❌ Multiple rallies simulation failed: {response.status_code}")
